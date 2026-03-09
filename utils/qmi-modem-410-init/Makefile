@@ -1,7 +1,7 @@
 include $(TOPDIR)/rules.mk
 
 PKG_NAME:=qmi-modem-410-init
-PKG_VERSION:=1.0
+PKG_VERSION:=1.1
 PKG_RELEASE:=5
 
 PKG_MAINTAINER:=lkiuyu <lkiuyu@gmail.com>
@@ -13,7 +13,7 @@ define Package/qmi-modem-410-init
   SECTION:=Utilities
   CATEGORY:=Utilities
   TITLE:=QMI Modem Initialization Script For 410 Modem Stick
-  DEPENDS:=+libqmi
+  DEPENDS:=+libqmi +coreutils-stdbuf +modemmanager
   PKGARCH:=all
 endef
 
@@ -28,9 +28,11 @@ endef
 define Package/qmi-modem-410-init/install
 	$(INSTALL_DIR) $(1)/usr/bin
 	$(INSTALL_BIN) ./files/qmi-modem-410-init.sh $(1)/usr/bin/qmi-modem-410-init
+	$(INSTALL_BIN) ./files/qmi_auto_activate.sh $(1)/usr/bin/qmi_auto_activate
 	
 	$(INSTALL_DIR) $(1)/etc/init.d
 	$(INSTALL_BIN) ./files/qmi-modem-410-init.init $(1)/etc/init.d/qmi-modem-410-init
+	$(INSTALL_BIN) ./files/qmi_auto_activate.init $(1)/etc/init.d/qmi_auto_activate
 endef
 
 $(eval $(call BuildPackage,qmi-modem-410-init))
