@@ -5,6 +5,7 @@ MODEL_FILE="/sys/firmware/devicetree/base/model"
 LOG_FILE="/var/log/qmi-modem-init.log"
 MAX_RETRIES=10
 RETRY_DELAY=5
+DEVICE_PATH="qcom-soc"
 
 log() {
     echo "[$(date '+%Y-%m-%d %H:%M:%S')] $1" >> "$LOG_FILE"
@@ -80,14 +81,9 @@ main() {
         return 0
     fi
     
-    # Stop ModemManager
-    log "Stopping ModemManager"
-    /etc/init.d/modemmanager stop 2>/dev/null
-    
     # Wait for QMI device
     if ! check_qmi_device; then
         log "QMI device not found after maximum retries"
-        /etc/init.d/modemmanager start 2>/dev/null
         return 1
     fi
     
@@ -110,9 +106,7 @@ main() {
 
     sleep 1
     
-    # Start ModemManager
-    log "Starting ModemManager"
-    /etc/init.d/modemmanager start 2>/dev/null
+    timeout 0.2 mmcli --inhibit-device="$DEVICE_PATH" || true
     
     log "QMI modem initialization completed"
     return 0
