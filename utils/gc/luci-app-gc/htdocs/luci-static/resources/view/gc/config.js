@@ -17,22 +17,30 @@ return view.extend({
 				return ui.changes.apply(mode == '0');
 			})
 			.then(function() {
-				return callRcInit('gc', 'restart');
+				window.setTimeout(function() {
+					Promise.resolve(callRcInit('gc', 'restart')).catch(function() {});
+				}, 100);
 			});
 	},
 
 	render: function() {
 		var m, s, o;
 
-		m = new form.Map('gc', _('USB 设备模式'), _('用于配置 USB Gadget 功能。注意：保存并应用后将重启 USB Gadget 服务，使配置立即生效。'));
+		m = new form.Map('gc', _('USB 设备模式'), _('用于配置 USB Host / Gadget 模式及 Gadget 功能。注意：保存并应用后将按所选模式立即切换。'));
 
 		s = m.section(form.NamedSection, 'config', 'gc', _('基本设置'));
 		s.anonymous = false;
 		s.addremove = false;
 
+		o = s.option(form.ListValue, 'mode', _('USB 模式'));
+		o.value('gadget', _('设备模式'));
+		o.value('host', _('主机模式'));
+		o.rmempty = false;
+		o.description = _('切换 USB 控制器工作在 Gadget 或 Host 模式。');
+
 		o = s.option(form.Flag, 'enabled', _('启用'));
 		o.rmempty = false;
-		o.description = _('启用 USB Gadget 管理。');
+		o.description = _('启用 USB Gadget 管理。仅在设备模式下生效。');
 
 		o = s.option(form.Flag, 'adb', _('ADB 调试'));
 		o.rmempty = false;
