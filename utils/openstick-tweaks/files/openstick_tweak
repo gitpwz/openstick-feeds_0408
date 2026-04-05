@@ -17,6 +17,7 @@ uci set network.modem.proto='modemmanager'
 uci set network.modem.device='qcom-soc'
 uci set network.modem.auth='none'
 uci set network.modem.iptype='ipv4v6'
+uci set network.modem.autoconnect='1'
 uci del_list firewall.@zone[1].network='modem'
 uci add_list firewall.@zone[1].network='modem'
 uci commit
