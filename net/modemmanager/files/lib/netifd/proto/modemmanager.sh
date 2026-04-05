@@ -666,7 +666,7 @@ proto_modemmanager_setup() {
 	}
 
 	if [ -z "${allowedmode}" ]; then
-		:
+		modemmanager_set_allowed_mode "$device" "$interface" "any"
 	else
 		case "$allowedmode" in
 			"2g")
