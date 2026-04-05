@@ -549,27 +549,30 @@ modemmanager_init_epsbearer() {
 }
 
 modemmanager_set_plmn() {
-	local device="$1"
-	local interface="$2"
-	local plmn="$3"
-	local force_connection="$4"
+    local device="$1"
+    local interface="$2"
+    local plmn="$3"
+    local force_connection="$4"
+    local silent="${5:-0}"
 
-	mmcli --modem="${device}" \
-		--timeout 300 \
-		--3gpp-register-in-operator="${plmn}" || {
-		if [ -n "${force_connection}" ] && [ "${force_connection}" -eq 1 ]; then
-			echo "3GPP operator registration failed -> attempting restart"
-				proto_notify_error "${interface}" MM_INTERFACE_RESTART
-			else
-				proto_notify_error "${interface}" MM_3GPP_OPERATOR_REGISTRATION_FAILED
-				proto_block_restart "${interface}"
-		fi
-		return 1
-	}
+    mmcli --modem="${device}" \
+        --timeout 120 \
+        --3gpp-register-in-operator="${plmn}" || {
+        [ "${silent}" = "1" ] && return 1
+        if [ -n "${force_connection}" ] && [ "${force_connection}" -eq 1 ]; then
+            echo "3GPP operator registration failed -> attempting restart"
+                proto_notify_error "${interface}" MM_INTERFACE_RESTART
+            else
+                proto_notify_error "${interface}" MM_3GPP_OPERATOR_REGISTRATION_FAILED
+                proto_block_restart "${interface}"
+        fi
+        return 1
+    }
 }
 
 proto_modemmanager_setup() {
 	local interface="$1"
+	logger -t modemmanager "DEBUG setup called for interface=${interface}"
 
 	local modempath modemstatus bearercount bearerpath connectargs bearerstatus beareriface
 	local bearermethod_ipv4 bearermethod_ipv6 auth cliauth
@@ -698,14 +701,43 @@ proto_modemmanager_setup() {
 		[ "$?" -ne "0" ] && return 1
 	fi
 
-	if [ -z "${plmn}" ]; then
-		modemmanager_set_plmn "$device" "$interface" "" "$force_connection"
-		[ "$?" -ne "0" ] && return 1
-	else
-		echo "starting network registration with plmn '${plmn}'..."
-		modemmanager_set_plmn "$device" "$interface" "$plmn" "$force_connection"
-		[ "$?" -ne "0" ] && return 1
-	fi
+	# PLMN 注册（静默模式，失败不报错，由后续轮询确认注册结果）
+    if [ -z "${plmn}" ]; then
+        modemmanager_set_plmn "$device" "$interface" "" "$force_connection" 1 || true
+    else
+        echo "starting network registration with plmn '${plmn}'..."
+        modemmanager_set_plmn "$device" "$interface" "$plmn" "$force_connection" 1 || true
+    fi
+
+    # 等待注册完成
+    echo "waiting for network registration..."
+    local wait_reg=0
+    local max_wait_reg=180
+    while [ ${wait_reg} -lt ${max_wait_reg} ]; do
+        modemstatus=$(mmcli --modem="${device}" --output-keyvalue 2>/dev/null)
+        local reg_state
+        reg_state=$(modemmanager_get_field "${modemstatus}" "modem.3gpp.registration-state")
+        if echo "${reg_state}" | grep -q "home\|roaming"; then
+            echo "modem registered (${reg_state}) after ${wait_reg}s"
+            break
+        fi
+        if [ ${wait_reg} -ge ${max_wait_reg} ]; then
+            echo "registration timeout (${max_wait_reg}s), current: ${reg_state}"
+            break
+        fi
+        sleep 5
+        wait_reg=$((wait_reg + 5))
+    done
+
+    # autoconnect 检查
+    json_get_vars autoconnect
+    autoconnect="${autoconnect:-1}"
+    if [ "${autoconnect}" = "0" ] && [ "${AUTOCONNECT:-0}" = "1" ]; then
+        echo "autoconnect disabled, modem registered but not connecting"
+        return 0
+    fi
+
+
 
 	# setup connect args; APN mandatory (even if it may be empty)
 	echo "starting connection with apn '${apn}'..."
@@ -731,36 +763,6 @@ proto_modemmanager_setup() {
 	append_param "${cliauth:+allowed-auth=${cliauth}}"
 	append_param "${username:+user=${username}}"
 	append_param "${password:+password=${password}}"
-
-	# ===== 等待网络注册完成 =====
-    echo "waiting for network registration..."
-    local wait_reg=0
-    local max_wait_reg=180
-    while [ ${wait_reg} -lt ${max_wait_reg} ]; do
-        modemstatus=$(mmcli --modem="${device}" --output-keyvalue 2>/dev/null)
-        local reg_state
-        reg_state=$(modemmanager_get_field "${modemstatus}" "modem.3gpp.registration-state")
-        if echo "${reg_state}" | grep -q "home\|roaming"; then
-            echo "modem registered (${reg_state}) after ${wait_reg}s"
-            break
-        fi
-        if [ ${wait_reg} -ge ${max_wait_reg} ]; then
-            echo "registration timeout (${max_wait_reg}s), current: ${reg_state}"
-            break
-        fi
-        sleep 5
-        wait_reg=$((wait_reg + 5))
-    done
-    # ===== 等待结束 =====
-
-    # ===== autoconnect 检查 =====
-    json_get_vars autoconnect
-    autoconnect="${autoconnect:-1}"
-    if [ "${autoconnect}" = "0" ] && [ "${AUTOCONNECT:-0}" = "1" ]; then
-        echo "autoconnect disabled, modem registered but not connecting"
-        return 0
-    fi
-    # ===== autoconnect 检查结束 =====
 
 	mmcli --modem="${device}" --timeout 120 --simple-connect="${connectargs}" || {
 		if [ -n "${force_connection}" ] && [ "${force_connection}" -eq 1 ]; then
