@@ -6,7 +6,7 @@ STOP=10
 
 USE_PROCD=1
 PROG=/usr/bin/qmi-modem-410-init
-DELAY=10
+DELAY=15
 
 start_service() {
     sleep "$DELAY"
