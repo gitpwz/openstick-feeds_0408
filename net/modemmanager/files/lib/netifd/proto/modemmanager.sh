@@ -289,6 +289,7 @@ proto_modemmanager_init_config() {
 	proto_config_add_string init_user
 	proto_config_add_string init_apn
 	proto_config_add_defaults
+	proto_config_add_boolean autoconnect
 }
 
 # Append param to the global 'connectargs' variable.
@@ -554,7 +555,7 @@ modemmanager_set_plmn() {
 	local force_connection="$4"
 
 	mmcli --modem="${device}" \
-		--timeout 120 \
+		--timeout 300 \
 		--3gpp-register-in-operator="${plmn}" || {
 		if [ -n "${force_connection}" ] && [ "${force_connection}" -eq 1 ]; then
 			echo "3GPP operator registration failed -> attempting restart"
@@ -665,7 +666,7 @@ proto_modemmanager_setup() {
 	}
 
 	if [ -z "${allowedmode}" ]; then
-		modemmanager_set_allowed_mode "$device" "$interface" "any"
+		:
 	else
 		case "$allowedmode" in
 			"2g")
@@ -730,6 +731,36 @@ proto_modemmanager_setup() {
 	append_param "${cliauth:+allowed-auth=${cliauth}}"
 	append_param "${username:+user=${username}}"
 	append_param "${password:+password=${password}}"
+
+	# ===== 等待网络注册完成 =====
+    echo "waiting for network registration..."
+    local wait_reg=0
+    local max_wait_reg=180
+    while [ ${wait_reg} -lt ${max_wait_reg} ]; do
+        modemstatus=$(mmcli --modem="${device}" --output-keyvalue 2>/dev/null)
+        local reg_state
+        reg_state=$(modemmanager_get_field "${modemstatus}" "modem.3gpp.registration-state")
+        if echo "${reg_state}" | grep -q "home\|roaming"; then
+            echo "modem registered (${reg_state}) after ${wait_reg}s"
+            break
+        fi
+        if [ ${wait_reg} -ge ${max_wait_reg} ]; then
+            echo "registration timeout (${max_wait_reg}s), current: ${reg_state}"
+            break
+        fi
+        sleep 5
+        wait_reg=$((wait_reg + 5))
+    done
+    # ===== 等待结束 =====
+
+    # ===== autoconnect 检查 =====
+    json_get_vars autoconnect
+    autoconnect="${autoconnect:-1}"
+    if [ "${autoconnect}" = "0" ] && [ "${AUTOCONNECT:-0}" = "1" ]; then
+        echo "autoconnect disabled, modem registered but not connecting"
+        return 0
+    fi
+    # ===== autoconnect 检查结束 =====
 
 	mmcli --modem="${device}" --timeout 120 --simple-connect="${connectargs}" || {
 		if [ -n "${force_connection}" ] && [ "${force_connection}" -eq 1 ]; then
