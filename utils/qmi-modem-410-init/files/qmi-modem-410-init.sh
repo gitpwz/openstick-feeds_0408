@@ -35,6 +35,21 @@ reset_eps_apn() {
     fi
 }
 
+reset_wf2_eps_apn() {
+    log "Resetting wf2 EPS APN"
+    qmicli -d /dev/wwan0qmi0 -p --wds-delete-profile="3gpp,2"
+    qmicli -d /dev/wwan0qmi0 -p --wds-delete-profile="3gpp,3"
+    qmicli -d /dev/wwan0qmi0 -p --wds-delete-profile="3gpp,4"
+    qmicli -d /dev/wwan0qmi0 -p --wds-delete-profile="3gpp,5"
+    if qmicli -d /dev/wwan0qmi0 -p --wds-modify-profile="3gpp,1,apn='',pdp-type=IPV4V6,auth=NONE,username='',password=''"; then
+        log "wf2 EPS APN reset successful"
+        return 0
+    else
+        log "Failed to reset EPS APN"
+        return 1
+    fi
+}
+
 activate_sim() {
     log "Activating SIM for models matching: $ActiveSimModelKeyWords"
     
@@ -72,14 +87,8 @@ main() {
     log "Device model: $MODEL"
     
     # Define model keywords
-    ResetEpsApnModelKeyWords="uz801|jz02v10|gexing-sp970"
+    ResetEpsApnModelKeyWords="uz801|jz02v10|gexing-sp970|ufi-wf2"
     ActiveSimModelKeyWords="gexing-sp970"
-    
-    # Check if device matches any keywords
-    if ! echo "$MODEL" | grep -qE "$ResetEpsApnModelKeyWords"; then
-        log "Device model does not match any known pattern"
-        return 0
-    fi
     
     # Wait for QMI device
     if ! check_qmi_device; then
@@ -89,7 +98,11 @@ main() {
     
     # Reset EPS APN if needed
     if echo "$MODEL" | grep -qE "$ResetEpsApnModelKeyWords"; then
-        reset_eps_apn
+        if echo "$MODEL" | grep -qE "ufi-wf2"; then
+            reset_wf2_eps_apn
+        else
+            reset_eps_apn
+        fi
     fi
 
     sleep 1

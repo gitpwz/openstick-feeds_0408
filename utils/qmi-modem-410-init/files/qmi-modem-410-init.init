@@ -6,8 +6,10 @@ STOP=10
 
 USE_PROCD=1
 PROG=/usr/bin/qmi-modem-410-init
+DELAY=15
 
 start_service() {
+    sleep "$DELAY"
     procd_open_instance
     procd_set_param command "$PROG"
     procd_set_param stdout 1
