@@ -1,5 +1,4 @@
 config gc 'config'
-	option mode 'gadget'
 	option enabled '1'
 	option adb '1'
 	option rndis '1'
