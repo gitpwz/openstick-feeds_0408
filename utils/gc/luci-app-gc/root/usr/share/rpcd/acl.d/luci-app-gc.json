@@ -1,14 +1,13 @@
 {
-  "luci-app-gc": {
-    "description": "Grant LuCI access for gc",
-    "read": {
-      "uci": [ "gc" ]
+  "admin/services/gc": {
+    "title": "USB 设备模式",
+    "order": 90,
+    "action": {
+      "type": "view",
+      "path": "gc/config"
     },
-    "write": {
-      "uci": [ "gc" ],
-      "ubus": {
-        "rc": [ "init" ]
-      }
+    "depends": {
+      "acl": [ "luci-app-gc" ]
     }
   }
 }
